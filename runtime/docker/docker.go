@@ -269,16 +269,6 @@ func (d *DockerRuntime) CreateNet(ctx context.Context) (err error) {
 
 // postCreateNetActions performs additional actions after the network has been created.
 func (d *DockerRuntime) postCreateNetActions() (err error) {
-	log.Debug("Disable RPF check on the docker host")
-	err = setSysctl("net/ipv4/conf/all/rp_filter", 0)
-	if err != nil {
-		return fmt.Errorf("failed to disable RP filter on docker host for the 'all' scope: %v", err)
-	}
-	err = setSysctl("net/ipv4/conf/default/rp_filter", 0)
-	if err != nil {
-		return fmt.Errorf("failed to disable RP filter on docker host for the 'default' scope: %v", err)
-	}
-
 	log.Debugf("Enable LLDP on the linux bridge %s", d.mgmt.Bridge)
 	file := "/sys/class/net/" + d.mgmt.Bridge + "/bridge/group_fwd_mask"
 
