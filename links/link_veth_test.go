@@ -1,34 +1,34 @@
-package links
+package links_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
+	"github.com/srl-labs/containerlab/links"
+	"github.com/srl-labs/containerlab/mocks/mocklinknodes"
 	"github.com/srl-labs/containerlab/nodes/state"
-	"github.com/vishvananda/netlink"
 )
 
 func TestLinkVEthRaw_ToLinkBriefRaw(t *testing.T) {
 	type fields struct {
-		LinkCommonParams LinkCommonParams
-		Endpoints        []*EndpointRaw
+		LinkCommonParams links.LinkCommonParams
+		Endpoints        []*links.EndpointRaw
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		want   *LinkBriefRaw
+		want   *links.LinkBriefRaw
 	}{
 		{
 			name: "test1",
 			fields: fields{
-				LinkCommonParams: LinkCommonParams{
+				LinkCommonParams: links.LinkCommonParams{
 					MTU:    1500,
 					Labels: map[string]string{"foo": "bar"},
 					Vars:   map[string]any{"foo": "bar"},
 				},
-				Endpoints: []*EndpointRaw{
+				Endpoints: []*links.EndpointRaw{
 					{
 						Node:  "node1",
 						Iface: "eth1",
@@ -39,9 +39,9 @@ func TestLinkVEthRaw_ToLinkBriefRaw(t *testing.T) {
 					},
 				},
 			},
-			want: &LinkBriefRaw{
+			want: &links.LinkBriefRaw{
 				Endpoints: []string{"node1:eth1", "node2:eth2"},
-				LinkCommonParams: LinkCommonParams{
+				LinkCommonParams: links.LinkCommonParams{
 					MTU:    1500,
 					Labels: map[string]string{"foo": "bar"},
 					Vars:   map[string]any{"foo": "bar"},
@@ -51,7 +51,7 @@ func TestLinkVEthRaw_ToLinkBriefRaw(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &LinkVEthRaw{
+			r := &links.LinkVEthRaw{
 				LinkCommonParams: tt.fields.LinkCommonParams,
 				Endpoints:        tt.fields.Endpoints,
 			}
@@ -67,26 +67,26 @@ func TestLinkVEthRaw_ToLinkBriefRaw(t *testing.T) {
 
 func TestLinkVEthRaw_GetType(t *testing.T) {
 	type fields struct {
-		LinkCommonParams LinkCommonParams
-		Endpoints        []*EndpointRaw
+		LinkCommonParams links.LinkCommonParams
+		Endpoints        []*links.EndpointRaw
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		want   LinkType
+		want   links.LinkType
 	}{
 		{
 			name: "test1",
 			fields: fields{
-				LinkCommonParams: LinkCommonParams{},
-				Endpoints:        []*EndpointRaw{},
+				LinkCommonParams: links.LinkCommonParams{},
+				Endpoints:        []*links.EndpointRaw{},
 			},
-			want: LinkTypeVEth,
+			want: links.LinkTypeVEth,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &LinkVEthRaw{
+			r := &links.LinkVEthRaw{
 				LinkCommonParams: tt.fields.LinkCommonParams,
 				Endpoints:        tt.fields.Endpoints,
 			}
@@ -98,32 +98,45 @@ func TestLinkVEthRaw_GetType(t *testing.T) {
 }
 
 func TestLinkVEthRaw_Resolve(t *testing.T) {
-	fn1 := newFakeNode("node1")
-	fn2 := newFakeNode("node2")
+	// init Runtime Mock
+	ctrl := gomock.NewController(t)
+
+	// instantiate Mock Node 1
+	fn1 := mocklinknodes.NewMockNode(ctrl)
+	fn1.EXPECT().GetShortName().Return("node1").AnyTimes()
+	var ept links.LinkEndpointType = links.LinkEndpointTypeVeth
+	fn1.EXPECT().GetLinkEndpointType().Return(ept).AnyTimes()
+	fn1.EXPECT().GetState().Return(state.Deployed).AnyTimes()
+
+	// instantiate Mock Node 2
+	fn2 := mocklinknodes.NewMockNode(ctrl)
+	fn2.EXPECT().GetShortName().Return("node2").AnyTimes()
+	fn2.EXPECT().GetLinkEndpointType().Return(ept).AnyTimes()
+	fn2.EXPECT().GetState().Return(state.Deployed).AnyTimes()
 
 	type fields struct {
-		LinkCommonParams LinkCommonParams
-		Endpoints        []*EndpointRaw
+		LinkCommonParams links.LinkCommonParams
+		Endpoints        []*links.EndpointRaw
 	}
 	type args struct {
-		params *ResolveParams
+		params *links.ResolveParams
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		args    args
-		want    *LinkVEth
+		want    *links.LinkVEth
 		wantErr bool
 	}{
 		{
 			name: "test1",
 			fields: fields{
-				LinkCommonParams: LinkCommonParams{
+				LinkCommonParams: links.LinkCommonParams{
 					MTU:    1500,
 					Labels: map[string]string{"foo": "bar"},
 					Vars:   map[string]any{"foo": "bar"},
 				},
-				Endpoints: []*EndpointRaw{
+				Endpoints: []*links.EndpointRaw{
 					{
 						Node:  "node1",
 						Iface: "eth1",
@@ -135,28 +148,28 @@ func TestLinkVEthRaw_Resolve(t *testing.T) {
 				},
 			},
 			args: args{
-				params: &ResolveParams{
-					Nodes: map[string]Node{
+				params: &links.ResolveParams{
+					Nodes: map[string]links.Node{
 						"node1": fn1,
 						"node2": fn2,
 					},
 				},
 			},
-			want: &LinkVEth{
-				LinkCommonParams: LinkCommonParams{
+			want: &links.LinkVEth{
+				LinkCommonParams: links.LinkCommonParams{
 					MTU:    1500,
 					Labels: map[string]string{"foo": "bar"},
 					Vars:   map[string]any{"foo": "bar"},
 				},
-				Endpoints: []Endpoint{
-					&EndpointVeth{
-						EndpointGeneric: EndpointGeneric{
+				Endpoints: []links.Endpoint{
+					&links.EndpointVeth{
+						EndpointGeneric: links.EndpointGeneric{
 							Node:      fn1,
 							IfaceName: "eth1",
 						},
 					},
-					&EndpointVeth{
-						EndpointGeneric: EndpointGeneric{
+					&links.EndpointVeth{
+						EndpointGeneric: links.EndpointGeneric{
 							Node:      fn2,
 							IfaceName: "eth2",
 						},
@@ -169,7 +182,7 @@ func TestLinkVEthRaw_Resolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &LinkVEthRaw{
+			r := &links.LinkVEthRaw{
 				LinkCommonParams: tt.fields.LinkCommonParams,
 				Endpoints:        tt.fields.Endpoints,
 			}
@@ -178,63 +191,20 @@ func TestLinkVEthRaw_Resolve(t *testing.T) {
 				t.Errorf("LinkVEthRaw.Resolve() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			l := got.(*LinkVEth)
+			l := got.(*links.LinkVEth)
 			if d := cmp.Diff(l.LinkCommonParams, tt.want.LinkCommonParams); d != "" {
 				t.Errorf("LinkVEthRaw.Resolve() LinkCommonParams diff = %s", d)
 			}
 
 			for i, e := range l.Endpoints {
-				if e.(*EndpointVeth).IfaceName != tt.want.Endpoints[i].(*EndpointVeth).IfaceName {
-					t.Errorf("LinkVEthRaw.Resolve() EndpointVeth got %s, want %s", e.(*EndpointVeth).IfaceName, tt.want.Endpoints[i].(*EndpointVeth).IfaceName)
+				if e.(*links.EndpointVeth).IfaceName != tt.want.Endpoints[i].(*links.EndpointVeth).IfaceName {
+					t.Errorf("LinkVEthRaw.Resolve() EndpointVeth got %s, want %s", e.(*links.EndpointVeth).IfaceName, tt.want.Endpoints[i].(*links.EndpointVeth).IfaceName)
 				}
 
-				if e.(*EndpointVeth).Node != tt.want.Endpoints[i].(*EndpointVeth).Node {
-					t.Errorf("LinkVEthRaw.Resolve() EndpointVeth got %s, want %s", e.(*EndpointVeth).Node, tt.want.Endpoints[i].(*EndpointVeth).Node)
+				if e.(*links.EndpointVeth).Node != tt.want.Endpoints[i].(*links.EndpointVeth).Node {
+					t.Errorf("LinkVEthRaw.Resolve() EndpointVeth got %s, want %s", e.(*links.EndpointVeth).Node, tt.want.Endpoints[i].(*links.EndpointVeth).Node)
 				}
 			}
 		})
 	}
-}
-
-// fakeNode is a fake implementation of Node for testing.
-type fakeNode struct {
-	Name      string
-	Endpoints []Endpoint
-}
-
-func newFakeNode(name string) *fakeNode {
-	return &fakeNode{Name: name}
-}
-
-func (n *fakeNode) AddLinkToContainer(ctx context.Context, link netlink.Link, f func(ns.NetNS) error) error {
-	panic("not implemented")
-}
-
-func (f *fakeNode) AddLink(l Link) {
-	panic("not implemented")
-}
-
-// AddEndpoint adds the Endpoint to the node
-func (f *fakeNode) AddEndpoint(e Endpoint) {
-	f.Endpoints = append(f.Endpoints, e)
-}
-
-func (f *fakeNode) GetLinkEndpointType() LinkEndpointType {
-	return LinkEndpointTypeVeth
-}
-
-func (f *fakeNode) GetShortName() string {
-	panic("not implemented")
-}
-
-func (f *fakeNode) GetEndpoints() []Endpoint {
-	panic("not implemented")
-}
-
-func (f *fakeNode) ExecFunction(_ func(ns.NetNS) error) error {
-	panic("not implemented")
-}
-
-func (f *fakeNode) GetState() state.NodeState {
-	panic("not implemented")
 }
